@@ -94,7 +94,7 @@ export default function LoginPage() {
 
       if (data.accessToken) {
         storeSessionTokens(data);
-        router.push("/");
+        router.push("/dashboard");
         router.refresh();
         return;
       }
@@ -154,7 +154,7 @@ export default function LoginPage() {
   }
 
   function continueAfterMfaSuccess() {
-    router.push("/");
+    router.push("/dashboard");
     router.refresh();
   }
 

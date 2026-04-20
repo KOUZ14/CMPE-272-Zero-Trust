@@ -180,8 +180,8 @@ export default function MfaEnrollPage() {
               <p className="loginInfo" style={{ textAlign: "center" }}>
                 Two-factor authentication is already enabled on your account.
               </p>
-              <Link href="/" className="loginSubmit" style={{ textAlign: "center", textDecoration: "none", display: "block" }}>
-                Back to home
+              <Link href="/dashboard" className="loginSubmit" style={{ textAlign: "center", textDecoration: "none", display: "block" }}>
+                Back to dashboard
               </Link>
             </>
           ) : null}
@@ -206,8 +206,8 @@ export default function MfaEnrollPage() {
                   Sign in
                 </Link>
                 {" · "}
-                <Link href="/" className="loginRegisterLink">
-                  Home
+                <Link href="/dashboard" className="loginRegisterLink">
+                  Dashboard
                 </Link>
               </p>
             </>
@@ -304,7 +304,7 @@ export default function MfaEnrollPage() {
                   you&apos;ll enter a code from your app after your password.
                 </p>
                 <Link
-                  href="/"
+                  href="/dashboard"
                   className="loginSubmit"
                   style={{
                     textAlign: "center",

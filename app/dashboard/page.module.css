@@ -1,0 +1,167 @@
+.page {
+  min-height: 100vh;
+  padding: 24px;
+  background: #f6f7fb;
+  color: #111827;
+}
+
+.topBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.topBar h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.topBar p {
+  margin: 4px 0 0;
+  color: #4b5563;
+}
+
+.topActions {
+  display: flex;
+  gap: 8px;
+}
+
+.error {
+  margin: 0 0 16px;
+  color: #b91c1c;
+}
+
+.cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 16px;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.card h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.card p {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.panel p {
+  margin: 6px 0;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.row p {
+  margin: 4px 0;
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inlineForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inlineForm input,
+.inlineForm select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 140px;
+}
+
+.mfaBlock {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qr {
+  width: 180px;
+  height: 180px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.code {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.page button {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #000;
+  cursor: pointer;
+}
+
+.page button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

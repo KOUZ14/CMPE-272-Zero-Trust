@@ -28,36 +28,26 @@ export async function GET(request) {
     }
 
     const [rows] = await pool.query(
-      `SELECT s.id, s.device_id, s.expires_at, s.revoked_at, s.created_at,
-              d.device_name, d.user_agent, d.ip_address, d.trusted, d.last_seen_at
-       FROM Sessions s
-       LEFT JOIN Devices d ON d.id = s.device_id
-       WHERE s.user_id = ?
-       ORDER BY s.id DESC
-       LIMIT 100`,
+      `SELECT id, device_name, fingerprint, user_agent, ip_address, trusted, last_seen_at
+       FROM Devices
+       WHERE user_id = ?
+       ORDER BY last_seen_at DESC, id DESC`,
       [userId]
     );
 
     return NextResponse.json({
-      sessions: rows.map((row) => ({
+      devices: rows.map((row) => ({
         id: row.id,
-        device_id: row.device_id,
-        expires_at: row.expires_at,
-        revoked_at: row.revoked_at,
-        created_at: row.created_at,
-        device: row.device_id
-          ? {
-              name: row.device_name ?? null,
-              user_agent: row.user_agent ?? null,
-              ip_address: row.ip_address ?? null,
-              trusted: Boolean(row.trusted),
-              last_seen_at: row.last_seen_at ?? null,
-            }
-          : null,
+        device_name: row.device_name,
+        fingerprint: row.fingerprint,
+        user_agent: row.user_agent,
+        ip_address: row.ip_address,
+        trusted: Boolean(row.trusted),
+        last_seen_at: row.last_seen_at,
       })),
     });
   } catch (error) {
-    console.error("sessions/list:", error);
+    console.error("devices/list:", error);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }
