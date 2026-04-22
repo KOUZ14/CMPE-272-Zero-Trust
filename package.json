@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:setup:zero-trust": "node scripts/setup-zero-trust-db.mjs",
+    "db:check:zero-trust": "node scripts/check-zero-trust-db.mjs"
   },
   "dependencies": {
     "@planetscale/database": "^1.20.1",
