@@ -8,6 +8,7 @@ import {
   parseRolesFromRow,
 } from "@/lib/auth";
 import { createSession } from "@/lib/session";
+import { logAccessEvent, requestAuditContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,7 @@ export const runtime = "nodejs";
  */
 export async function POST(request) {
   try {
+    const auditContext = requestAuditContext(request);
     const body = await request.json().catch(() => ({}));
     const code = typeof body.code === "string" ? body.code.trim() : "";
     const mfaToken = typeof body.mfaToken === "string" ? body.mfaToken.trim() : "";
@@ -71,6 +73,15 @@ export async function POST(request) {
         window: 1,
       });
       if (!valid) {
+        await logAccessEvent({
+          ...auditContext,
+          category: "mfa",
+          eventType: "mfa_login_failed",
+          decision: "deny",
+          severity: "medium",
+          userId: user.id,
+          message: "Invalid MFA code during login",
+        });
         return NextResponse.json({ message: "Invalid code" }, { status: 401 });
       }
 
@@ -87,6 +98,17 @@ export async function POST(request) {
         mfaVerified: true,
         deviceId: null,
         sessionId,
+      });
+
+      await logAccessEvent({
+        ...auditContext,
+        category: "mfa",
+        eventType: "mfa_login_success",
+        decision: "allow",
+        severity: "low",
+        userId: user.id,
+        sessionId,
+        message: "MFA login succeeded",
       });
 
       return NextResponse.json({
@@ -148,10 +170,33 @@ export async function POST(request) {
       window: 1,
     });
     if (!valid) {
+      await logAccessEvent({
+        ...auditContext,
+        category: "mfa",
+        eventType: "mfa_enrollment_failed",
+        decision: "deny",
+        severity: "medium",
+        userId,
+        sessionId: Number(decoded.sessionId) || null,
+        deviceId: Number(decoded.deviceId) || null,
+        message: "Invalid MFA enrollment code",
+      });
       return NextResponse.json({ message: "Invalid code" }, { status: 401 });
     }
 
     await pool.query("UPDATE Users SET mfa_enabled = TRUE WHERE id = ?", [userId]);
+
+    await logAccessEvent({
+      ...auditContext,
+      category: "mfa",
+      eventType: "mfa_enrollment_success",
+      decision: "allow",
+      severity: "low",
+      userId,
+      sessionId: Number(decoded.sessionId) || null,
+      deviceId: Number(decoded.deviceId) || null,
+      message: "MFA enrollment completed",
+    });
 
     return NextResponse.json({ ok: true, mfa_enabled: true });
   } catch (error) {

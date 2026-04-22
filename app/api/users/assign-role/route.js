@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getBearerToken, verifyToken, parseRolesFromRow } from "@/lib/auth";
+import { logAccessEvent, requestAuditContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,7 @@ function tokenHasAdmin(decoded) {
 
 export async function POST(request) {
   try {
+    const auditContext = requestAuditContext(request);
     const token = getBearerToken(request);
     if (!token) {
       return NextResponse.json({ message: "Missing authorization" }, { status: 401 });
@@ -33,6 +35,12 @@ export async function POST(request) {
 
     if (!tokenHasAdmin(decoded)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+    if (!decoded.mfaVerified) {
+      return NextResponse.json(
+        { message: "Admin role assignment requires MFA verification" },
+        { status: 403 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
@@ -88,6 +96,18 @@ export async function POST(request) {
       );
     } catch (e) {
       if (e.code === "ER_DUP_ENTRY") {
+        await logAccessEvent({
+          ...auditContext,
+          category: "admin",
+          eventType: "role_assignment_duplicate",
+          decision: "info",
+          severity: "low",
+          userId: Number(decoded.sub) || null,
+          sessionId: Number(decoded.sessionId) || null,
+          deviceId: Number(decoded.deviceId) || null,
+          message: `User ${userId} already has role ${roleNameRaw}`,
+          metadata: { targetUserId: userId, roleName: roleNameRaw },
+        });
         return NextResponse.json({
           ok: true,
           message: "User already has this role",
@@ -97,6 +117,19 @@ export async function POST(request) {
       }
       throw e;
     }
+
+    await logAccessEvent({
+      ...auditContext,
+      category: "admin",
+      eventType: "role_assigned",
+      decision: "allow",
+      severity: roleNameRaw === "admin" ? "high" : "medium",
+      userId: Number(decoded.sub) || null,
+      sessionId: Number(decoded.sessionId) || null,
+      deviceId: Number(decoded.deviceId) || null,
+      message: `Assigned role ${roleNameRaw} to user ${userId}`,
+      metadata: { targetUserId: userId, roleName: roleNameRaw },
+    });
 
     return NextResponse.json({
       ok: true,

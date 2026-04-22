@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getBearerToken, verifyToken } from "@/lib/auth";
 import { revokeSession } from "@/lib/session";
+import { logAccessEvent, requestAuditContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
+    const auditContext = requestAuditContext(request);
     const token = getBearerToken(request);
     if (!token) {
       return NextResponse.json({ message: "Missing authorization" }, { status: 401 });
@@ -40,6 +42,17 @@ export async function POST(request) {
     }
 
     const revoked = await revokeSession(sessionId, userId);
+    await logAccessEvent({
+      ...auditContext,
+      category: "session",
+      eventType: "session_revoked",
+      decision: "info",
+      severity: revoked ? "medium" : "low",
+      userId,
+      sessionId,
+      deviceId: Number(decoded.deviceId) || null,
+      message: revoked ? "Session revoked" : "Session revoke requested but no active session changed",
+    });
     return NextResponse.json({ ok: true, revoked });
   } catch (error) {
     console.error("sessions/revoke:", error);

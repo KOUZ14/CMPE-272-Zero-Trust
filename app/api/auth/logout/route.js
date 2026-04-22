@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getBearerToken, hashRefreshToken, verifyToken } from "@/lib/auth";
 import { revokeSession } from "@/lib/session";
+import { logAccessEvent, requestAuditContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
+    const auditContext = requestAuditContext(request);
     const token = getBearerToken(request);
     if (!token) {
       return NextResponse.json({ message: "Missing authorization" }, { status: 401 });
@@ -47,6 +49,18 @@ export async function POST(request) {
     } else {
       await revokeSession(sessionId, userId);
     }
+
+    await logAccessEvent({
+      ...auditContext,
+      category: "session",
+      eventType: "logout",
+      decision: "info",
+      severity: "low",
+      userId,
+      sessionId,
+      deviceId: Number(decoded.deviceId) || null,
+      message: "User logged out and session was revoked",
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

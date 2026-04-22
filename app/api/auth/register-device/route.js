@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getBearerToken, verifyToken } from "@/lib/auth";
 import { clientIp, userAgent } from "@/lib/request-utils";
+import { logAccessEvent } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,7 @@ export async function POST(request) {
     }
 
     const userId = Number(decoded.sub);
+    const sessionId = Number(decoded.sessionId) || null;
     if (!userId) {
       return NextResponse.json({ message: "Invalid token payload" }, { status: 401 });
     }
@@ -57,6 +59,24 @@ export async function POST(request) {
          WHERE id = ?`,
         [ua, ip, deviceName, dev.id]
       );
+      if (sessionId) {
+        await pool.query(
+          "UPDATE Sessions SET device_id = ? WHERE id = ? AND user_id = ?",
+          [dev.id, sessionId, userId]
+        );
+      }
+      await logAccessEvent({
+        category: "device",
+        eventType: "device_seen",
+        decision: "info",
+        severity: "low",
+        userId,
+        sessionId,
+        deviceId: dev.id,
+        ipAddress: ip,
+        userAgent: ua,
+        message: "Existing device registered for current session",
+      });
       return NextResponse.json({
         id: dev.id,
         trusted: Boolean(dev.trusted),
@@ -69,6 +89,25 @@ export async function POST(request) {
        VALUES (?, ?, ?, ?, ?, FALSE)`,
       [userId, deviceName, fingerprint, ua, ip]
     );
+    if (sessionId) {
+      await pool.query(
+        "UPDATE Sessions SET device_id = ? WHERE id = ? AND user_id = ?",
+        [ins.insertId, sessionId, userId]
+      );
+    }
+
+    await logAccessEvent({
+      category: "device",
+      eventType: "device_registered",
+      decision: "info",
+      severity: "low",
+      userId,
+      sessionId,
+      deviceId: ins.insertId,
+      ipAddress: ip,
+      userAgent: ua,
+      message: "New device registered for current session",
+    });
 
     return NextResponse.json(
       {

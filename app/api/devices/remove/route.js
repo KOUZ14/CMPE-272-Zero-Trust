@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getBearerToken, verifyToken } from "@/lib/auth";
+import { logAccessEvent, requestAuditContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
+    const auditContext = requestAuditContext(request);
     const token = getBearerToken(request);
     if (!token) {
       return NextResponse.json({ message: "Missing authorization" }, { status: 401 });
@@ -47,6 +49,18 @@ export async function POST(request) {
     if (result.affectedRows === 0) {
       return NextResponse.json({ message: "Device not found" }, { status: 404 });
     }
+
+    await logAccessEvent({
+      ...auditContext,
+      category: "device",
+      eventType: "device_removed",
+      decision: "info",
+      severity: "medium",
+      userId,
+      sessionId: Number(decoded.sessionId) || null,
+      deviceId,
+      message: "Device removed",
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

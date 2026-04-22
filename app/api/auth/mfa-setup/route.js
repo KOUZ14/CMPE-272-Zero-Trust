@@ -3,6 +3,7 @@ import pool from "@/lib/db";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import { getBearerToken, verifyToken } from "@/lib/auth";
+import { logAccessEvent, requestAuditContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,7 @@ const ISSUER = process.env.MFA_ISSUER_NAME || "Employee Portal";
 
 export async function POST(request) {
   try {
+    const auditContext = requestAuditContext(request);
     const token = getBearerToken(request);
     if (!token) {
       return NextResponse.json({ message: "Missing authorization" }, { status: 401 });
@@ -56,6 +58,18 @@ export async function POST(request) {
       "UPDATE Users SET mfa_secret = ?, mfa_enabled = FALSE WHERE id = ?",
       [secret.base32, userId]
     );
+
+    await logAccessEvent({
+      ...auditContext,
+      category: "mfa",
+      eventType: "mfa_setup_started",
+      decision: "info",
+      severity: "low",
+      userId,
+      sessionId: Number(decoded.sessionId) || null,
+      deviceId: Number(decoded.deviceId) || null,
+      message: "MFA setup started",
+    });
 
     const otpauthUrl = secret.otpauth_url;
     const qrDataUrl = otpauthUrl

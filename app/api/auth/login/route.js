@@ -7,11 +7,13 @@ import {
   parseRolesFromRow,
 } from "@/lib/auth";
 import { createSession } from "@/lib/session";
+import { logAccessEvent, requestAuditContext } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
+    const auditContext = requestAuditContext(request);
     const body = await request.json().catch(() => ({}));
     const email =
       typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -36,12 +38,30 @@ export async function POST(request) {
     );
 
     if (rows.length === 0) {
+      await logAccessEvent({
+        ...auditContext,
+        category: "auth",
+        eventType: "login_failed",
+        decision: "deny",
+        severity: "medium",
+        message: "Login failed: unknown email",
+        metadata: { email },
+      });
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
     const user = rows[0];
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) {
+      await logAccessEvent({
+        ...auditContext,
+        category: "auth",
+        eventType: "login_failed",
+        decision: "deny",
+        severity: "medium",
+        userId: user.id,
+        message: "Login failed: invalid password",
+      });
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
@@ -49,6 +69,15 @@ export async function POST(request) {
 
     if (user.mfa_enabled) {
       const mfaToken = signMfaPendingToken(user.id);
+      await logAccessEvent({
+        ...auditContext,
+        category: "auth",
+        eventType: "login_password_verified",
+        decision: "info",
+        severity: "low",
+        userId: user.id,
+        message: "Password verified; MFA required",
+      });
       return NextResponse.json({
         message: "Password verified. MFA required.",
         mfaRequired: true,
@@ -68,6 +97,17 @@ export async function POST(request) {
       mfaVerified: false,
       deviceId: null,
       sessionId,
+    });
+
+    await logAccessEvent({
+      ...auditContext,
+      category: "auth",
+      eventType: "login_success",
+      decision: "allow",
+      severity: "low",
+      userId: user.id,
+      sessionId,
+      message: "Login succeeded without MFA requirement",
     });
 
     return NextResponse.json({
