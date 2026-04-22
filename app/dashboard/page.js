@@ -47,6 +47,10 @@ export default function DashboardPage() {
   const [me, setMe] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [devices, setDevices] = useState([]);
+  const [resources, setResources] = useState([]);
+  const [accessResults, setAccessResults] = useState({});
+  const [auditEvents, setAuditEvents] = useState([]);
+  const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -57,6 +61,7 @@ export default function DashboardPage() {
   const [assignRole, setAssignRole] = useState("manager");
   const [adminResult, setAdminResult] = useState("");
   const [showAllSessions, setShowAllSessions] = useState(false);
+  const [incidentNotes, setIncidentNotes] = useState({});
 
   const roleSet = useMemo(() => new Set(me?.roles || []), [me?.roles]);
   const isAdmin = roleSet.has("admin");
@@ -87,17 +92,19 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [meRes, sessionRes, deviceRes] = await Promise.all([
+      const [meRes, sessionRes, deviceRes, resourceRes] = await Promise.all([
         authFetch("/api/users/me"),
         authFetch("/api/sessions"),
         authFetch("/api/devices"),
+        authFetch("/api/resources"),
       ]);
-      if (!meRes || !sessionRes || !deviceRes) return;
+      if (!meRes || !sessionRes || !deviceRes || !resourceRes) return;
 
-      const [meData, sessionData, deviceData] = await Promise.all([
+      const [meData, sessionData, deviceData, resourceData] = await Promise.all([
         meRes.json().catch(() => ({})),
         sessionRes.json().catch(() => ({})),
         deviceRes.json().catch(() => ({})),
+        resourceRes.json().catch(() => ({})),
       ]);
 
       if (!meRes.ok) {
@@ -121,6 +128,38 @@ export default function DashboardPage() {
         setError((prev) =>
           prev || parseError(deviceData, "Devices are temporarily unavailable")
         );
+      }
+
+      if (resourceRes.ok) {
+        setResources(Array.isArray(resourceData.resources) ? resourceData.resources : []);
+      } else {
+        setResources([]);
+        setError((prev) =>
+          prev || parseError(resourceData, "Resources are temporarily unavailable")
+        );
+      }
+
+      const roles = Array.isArray(meData.roles) ? meData.roles : [];
+      if (roles.includes("admin") && meData.token?.mfaVerified) {
+        const [auditRes, incidentRes] = await Promise.all([
+          authFetch("/api/admin/audit-events"),
+          authFetch("/api/admin/incidents"),
+        ]);
+        if (auditRes) {
+          const auditData = await auditRes.json().catch(() => ({}));
+          setAuditEvents(auditRes.ok && Array.isArray(auditData.events) ? auditData.events : []);
+        }
+        if (incidentRes) {
+          const incidentData = await incidentRes.json().catch(() => ({}));
+          setIncidents(
+            incidentRes.ok && Array.isArray(incidentData.incidents)
+              ? incidentData.incidents
+              : []
+          );
+        }
+      } else {
+        setAuditEvents([]);
+        setIncidents([]);
       }
     } catch (e) {
       setError(e.message || "Failed to load dashboard");
@@ -320,6 +359,55 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleAccessResource(resourceId) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/resources/access", {
+        method: "POST",
+        body: JSON.stringify({ resourceId }),
+      });
+      if (!res) return;
+      const data = await res.json().catch(() => ({}));
+      setAccessResults((prev) => ({
+        ...prev,
+        [resourceId]: {
+          allowed: Boolean(data.allowed),
+          reason: data.reason || data.message || "Access decision unavailable",
+        },
+      }));
+      await loadAll();
+    } catch (e) {
+      setError(e.message || "Could not evaluate resource access");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUpdateIncident(incidentId, status, severity) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/admin/incidents", {
+        method: "POST",
+        body: JSON.stringify({
+          incidentId,
+          status,
+          severity,
+          notes: incidentNotes[incidentId] || "",
+        }),
+      });
+      if (!res) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parseError(data, "Could not update incident"));
+      await loadAll();
+    } catch (e) {
+      setError(e.message || "Could not update incident");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className={styles.page}>
@@ -363,6 +451,10 @@ export default function DashboardPage() {
         <article className={styles.card}>
           <h3>Trusted Devices</h3>
           <p>{devices.filter((d) => d.trusted).length}</p>
+        </article>
+        <article className={styles.card}>
+          <h3>Open Incidents</h3>
+          <p>{incidents.filter((i) => i.status === "open").length}</p>
         </article>
       </section>
 
@@ -484,6 +576,52 @@ export default function DashboardPage() {
           </div>
         </article>
 
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <h2>Resources</h2>
+            <button onClick={loadAll} disabled={busy}>
+              Refresh
+            </button>
+          </div>
+          <div className={styles.list}>
+            {resources.length === 0 ? <p>No resources found.</p> : null}
+            {resources.map((resource) => {
+              const result = accessResults[resource.id];
+              return (
+                <div key={resource.id} className={styles.row}>
+                  <div>
+                    <p><strong>{resource.name}</strong></p>
+                    <p>{resource.description || "No description"}</p>
+                    <p>
+                      Segment: {resource.segment} | Sensitivity: {resource.sensitivity}
+                    </p>
+                    <p>
+                      Current eligibility: {resource.eligible ? "likely allowed" : "not ready"}
+                    </p>
+                    {result ? (
+                      <p
+                        className={
+                          result.allowed ? styles.successText : styles.warningText
+                        }
+                      >
+                        {result.allowed ? "Allowed" : "Denied"}: {result.reason}
+                      </p>
+                    ) : (
+                      <p>{resource.eligibilityReason}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleAccessResource(resource.id)}
+                    disabled={busy}
+                  >
+                    Access
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+
         {isAdmin ? (
           <article className={styles.panel}>
             <h2>Admin: Assign Role</h2>
@@ -507,6 +645,123 @@ export default function DashboardPage() {
               </button>
             </form>
             {adminResult ? <p>{adminResult}</p> : null}
+          </article>
+        ) : null}
+
+        {isAdmin ? (
+          <article className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <h2>Monitoring</h2>
+              <button onClick={loadAll} disabled={busy}>
+                Refresh
+              </button>
+            </div>
+            {!me?.token?.mfaVerified ? (
+              <p>Admin monitoring requires an MFA-verified login.</p>
+            ) : (
+              <div className={styles.list}>
+                {auditEvents.length === 0 ? <p>No audit events found.</p> : null}
+                {auditEvents.slice(0, 12).map((event) => (
+                  <div key={event.id} className={styles.eventRow}>
+                    <p>
+                      <strong>{event.category}/{event.event_type}</strong>{" "}
+                      <span className={styles.badge}>{event.decision}</span>{" "}
+                      <span className={styles.badge}>{event.severity}</span>
+                    </p>
+                    <p>{prettyDate(event.created_at)}</p>
+                    <p>
+                      User: {event.user_email || event.user_id || "n/a"} | Resource:{" "}
+                      {event.resource_name || event.resource_id || "n/a"}
+                    </p>
+                    <p>{event.message || "No message"}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        ) : null}
+
+        {isAdmin ? (
+          <article className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <h2>Incident Response</h2>
+              <button onClick={loadAll} disabled={busy}>
+                Refresh
+              </button>
+            </div>
+            {!me?.token?.mfaVerified ? (
+              <p>Incident response requires an MFA-verified login.</p>
+            ) : (
+              <div className={styles.list}>
+                {incidents.length === 0 ? <p>No incidents found.</p> : null}
+                {incidents.map((incident) => (
+                  <div key={incident.id} className={styles.incidentRow}>
+                    <div>
+                      <p>
+                        <strong>{incident.title}</strong>{" "}
+                        <span className={styles.badge}>{incident.status}</span>{" "}
+                        <span className={styles.badge}>{incident.severity}</span>
+                      </p>
+                      <p>{incident.description || "No description"}</p>
+                      <p>
+                        Related user:{" "}
+                        {incident.related_user_email || incident.related_user_id || "n/a"}
+                      </p>
+                      <p>
+                        Created: {prettyDate(incident.created_at)} | Updated:{" "}
+                        {prettyDate(incident.updated_at)}
+                      </p>
+                      {incident.notes ? <p>Notes: {incident.notes}</p> : null}
+                      <textarea
+                        value={incidentNotes[incident.id] || ""}
+                        onChange={(e) =>
+                          setIncidentNotes((prev) => ({
+                            ...prev,
+                            [incident.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Triage notes"
+                        className={styles.notes}
+                      />
+                    </div>
+                    <div className={styles.actions}>
+                      <button
+                        onClick={() =>
+                          handleUpdateIncident(
+                            incident.id,
+                            "investigating",
+                            incident.severity
+                          )
+                        }
+                        disabled={busy}
+                      >
+                        Investigate
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleUpdateIncident(incident.id, "resolved", incident.severity)
+                        }
+                        disabled={busy}
+                      >
+                        Resolve
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleUpdateIncident(
+                            incident.id,
+                            "false_positive",
+                            incident.severity
+                          )
+                        }
+                        disabled={busy}
+                      >
+                        False Positive
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </article>
         ) : null}
       </section>
