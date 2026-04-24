@@ -8,7 +8,6 @@ import {
   getAccessToken,
   getRefreshToken,
 } from "@/lib/clientAuth";
-import Navbar from "../components/Navbar";
 import styles from "./page.module.css";
 
 function maskFingerprint(value) {
@@ -40,6 +39,16 @@ function makeFingerprint() {
   return btoa(unescape(encodeURIComponent(parts.join("|")))).slice(0, 128);
 }
 
+function getLatestAccessDecision(resource, accessResults) {
+  if (!resource) return null;
+  const result = accessResults[resource.id];
+  if (result) return result;
+  return {
+    allowed: Boolean(resource.eligible),
+    reason: resource.eligibilityReason || "Access decision unavailable",
+  };
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [token, setToken] = useState(null);
@@ -67,6 +76,46 @@ export default function DashboardPage() {
   const isAdmin = roleSet.has("admin");
   const currentSessionId = me?.token?.sessionId ?? null;
   const visibleSessions = showAllSessions ? sessions : sessions.slice(0, 5);
+  const hrResource = useMemo(
+    () => resources.find((resource) => resource.name === "HR Portal") || null,
+    [resources]
+  );
+  const financeResource = useMemo(
+    () => resources.find((resource) => resource.name === "Finance System") || null,
+    [resources]
+  );
+  const managerReportsResource = useMemo(
+    () => resources.find((resource) => resource.name === "Manager Reports") || null,
+    [resources]
+  );
+  const engineeringResource = useMemo(
+    () => resources.find((resource) => resource.name === "Engineering Repository") || null,
+    [resources]
+  );
+  const adminConsoleResource = useMemo(
+    () => resources.find((resource) => resource.name === "Admin Console") || null,
+    [resources]
+  );
+  const hrDecision = useMemo(
+    () => getLatestAccessDecision(hrResource, accessResults),
+    [hrResource, accessResults]
+  );
+  const financeDecision = useMemo(
+    () => getLatestAccessDecision(financeResource, accessResults),
+    [financeResource, accessResults]
+  );
+  const managerDecision = useMemo(
+    () => getLatestAccessDecision(managerReportsResource, accessResults),
+    [managerReportsResource, accessResults]
+  );
+  const engineeringDecision = useMemo(
+    () => getLatestAccessDecision(engineeringResource, accessResults),
+    [engineeringResource, accessResults]
+  );
+  const adminConsoleDecision = useMemo(
+    () => getLatestAccessDecision(adminConsoleResource, accessResults),
+    [adminConsoleResource, accessResults]
+  );
 
   const authFetch = useCallback(
     async (url, opts = {}) => {
@@ -620,6 +669,248 @@ export default function DashboardPage() {
               );
             })}
           </div>
+        </article>
+
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <h2>HR Portal</h2>
+            <button
+              onClick={() => hrResource && handleAccessResource(hrResource.id)}
+              disabled={busy || !hrResource}
+            >
+              Verify access
+            </button>
+          </div>
+          {!hrResource ? (
+            <p>HR Portal resource is not seeded yet.</p>
+          ) : (
+            <>
+              <p>
+                Segment: {hrResource.segment} | Sensitivity: {hrResource.sensitivity}
+              </p>
+              {hrDecision?.allowed ? (
+                <div className={styles.portalContent}>
+                  <p className={styles.successText}>Access granted: {hrDecision.reason}</p>
+                  <div className={styles.portalGrid}>
+                    <article className={styles.portalCard}>
+                      <h3>Benefits Enrollment</h3>
+                      <p>Current plan: Standard PPO</p>
+                      <p>Open enrollment window: Active</p>
+                    </article>
+                    <article className={styles.portalCard}>
+                      <h3>Time Off Balance</h3>
+                      <p>Vacation: 54 hours</p>
+                      <p>Sick leave: 18 hours</p>
+                    </article>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.portalLocked}>
+                  <p className={styles.warningText}>Access denied: {hrDecision?.reason}</p>
+                  <p>
+                    Complete required checks (active session, role policy, and MFA) then verify
+                    access again.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </article>
+
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <h2>Finance System</h2>
+            <button
+              onClick={() => financeResource && handleAccessResource(financeResource.id)}
+              disabled={busy || !financeResource}
+            >
+              Verify access
+            </button>
+          </div>
+          {!financeResource ? (
+            <p>Finance System resource is not seeded yet.</p>
+          ) : (
+            <>
+              <p>
+                Segment: {financeResource.segment} | Sensitivity: {financeResource.sensitivity}
+              </p>
+              {financeDecision?.allowed ? (
+                <div className={styles.portalContent}>
+                  <p className={styles.successText}>Access granted: {financeDecision.reason}</p>
+                  <div className={styles.portalGrid}>
+                    <article className={styles.portalCard}>
+                      <h3>Budget Snapshot</h3>
+                      <p>Q2 Operating Budget: $1.24M</p>
+                      <p>Variance: -1.8%</p>
+                    </article>
+                    <article className={styles.portalCard}>
+                      <h3>Invoice Queue</h3>
+                      <p>Pending approvals: 6</p>
+                      <p>High-priority invoices: 2</p>
+                    </article>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.portalLocked}>
+                  <p className={styles.warningText}>Access denied: {financeDecision?.reason}</p>
+                  <p>
+                    Finance access usually requires admin role, MFA-verified login, and a trusted
+                    device.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </article>
+
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <h2>Manager Reports</h2>
+            <button
+              onClick={() =>
+                managerReportsResource && handleAccessResource(managerReportsResource.id)
+              }
+              disabled={busy || !managerReportsResource}
+            >
+              Verify access
+            </button>
+          </div>
+          {!managerReportsResource ? (
+            <p>Manager Reports resource is not seeded yet.</p>
+          ) : (
+            <>
+              <p>
+                Segment: {managerReportsResource.segment} | Sensitivity:{" "}
+                {managerReportsResource.sensitivity}
+              </p>
+              {managerDecision?.allowed ? (
+                <div className={styles.portalContent}>
+                  <p className={styles.successText}>Access granted: {managerDecision.reason}</p>
+                  <div className={styles.portalGrid}>
+                    <article className={styles.portalCard}>
+                      <h3>Team Performance</h3>
+                      <p>Active goals: 11</p>
+                      <p>At-risk goals: 2</p>
+                    </article>
+                    <article className={styles.portalCard}>
+                      <h3>Staffing Summary</h3>
+                      <p>Open requisitions: 3</p>
+                      <p>Backfills pending: 1</p>
+                    </article>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.portalLocked}>
+                  <p className={styles.warningText}>Access denied: {managerDecision?.reason}</p>
+                  <p>
+                    Manager reports require a manager/admin role with MFA verification and a
+                    trusted device.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </article>
+
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <h2>Engineering Repository</h2>
+            <button
+              onClick={() => engineeringResource && handleAccessResource(engineeringResource.id)}
+              disabled={busy || !engineeringResource}
+            >
+              Verify access
+            </button>
+          </div>
+          {!engineeringResource ? (
+            <p>Engineering Repository resource is not seeded yet.</p>
+          ) : (
+            <>
+              <p>
+                Segment: {engineeringResource.segment} | Sensitivity:{" "}
+                {engineeringResource.sensitivity}
+              </p>
+              {engineeringDecision?.allowed ? (
+                <div className={styles.portalContent}>
+                  <p className={styles.successText}>
+                    Access granted: {engineeringDecision.reason}
+                  </p>
+                  <div className={styles.portalGrid}>
+                    <article className={styles.portalCard}>
+                      <h3>Release Branches</h3>
+                      <p>Release/2026.04.2 status: Ready</p>
+                      <p>Security patch queue: 2</p>
+                    </article>
+                    <article className={styles.portalCard}>
+                      <h3>Deployment Artifacts</h3>
+                      <p>Last signed build: 5 minutes ago</p>
+                      <p>Artifact integrity: Verified</p>
+                    </article>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.portalLocked}>
+                  <p className={styles.warningText}>
+                    Access denied: {engineeringDecision?.reason}
+                  </p>
+                  <p>
+                    Engineering repository access is restricted to admin policy requirements.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </article>
+
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <h2>Admin Console</h2>
+            <button
+              onClick={() => adminConsoleResource && handleAccessResource(adminConsoleResource.id)}
+              disabled={busy || !adminConsoleResource}
+            >
+              Verify access
+            </button>
+          </div>
+          {!adminConsoleResource ? (
+            <p>Admin Console resource is not seeded yet.</p>
+          ) : (
+            <>
+              <p>
+                Segment: {adminConsoleResource.segment} | Sensitivity:{" "}
+                {adminConsoleResource.sensitivity}
+              </p>
+              {adminConsoleDecision?.allowed ? (
+                <div className={styles.portalContent}>
+                  <p className={styles.successText}>
+                    Access granted: {adminConsoleDecision.reason}
+                  </p>
+                  <div className={styles.portalGrid}>
+                    <article className={styles.portalCard}>
+                      <h3>Privileged Access</h3>
+                      <p>Pending admin approvals: 2</p>
+                      <p>Recent role changes: 4</p>
+                    </article>
+                    <article className={styles.portalCard}>
+                      <h3>Security Operations</h3>
+                      <p>Open incidents: {incidents.filter((i) => i.status === "open").length}</p>
+                      <p>Critical alerts today: 1</p>
+                    </article>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.portalLocked}>
+                  <p className={styles.warningText}>
+                    Access denied: {adminConsoleDecision?.reason}
+                  </p>
+                  <p>
+                    Admin console requires admin role, MFA-verified login, and trusted device
+                    posture.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </article>
 
         {isAdmin ? (

@@ -163,6 +163,8 @@
   border-radius: 8px;
   padding: 8px;
   min-width: 140px;
+  background: #ffffff;
+  color: #111827;
 }
 
 .notes {
@@ -193,6 +195,46 @@
   background: #f3f4f6;
   border-radius: 8px;
   padding: 8px;
+}
+
+.portalContent {
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.portalLocked {
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fffbeb;
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.portalGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.portalCard {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.portalCard h3 {
+  margin: 0 0 6px;
+  font-size: 0.92rem;
+}
+
+.portalCard p {
+  margin: 4px 0;
+  font-size: 0.86rem;
 }
 
 .page button {
