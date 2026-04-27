@@ -89,32 +89,16 @@ export async function POST(request) {
     }
     const roleId = rrows[0].id;
 
+    await pool.query("START TRANSACTION");
     try {
+      await pool.query("DELETE FROM UserRoles WHERE user_id = ?", [userId]);
       await pool.query(
         "INSERT INTO UserRoles (user_id, role_id) VALUES (?, ?)",
         [userId, roleId]
       );
+      await pool.query("COMMIT");
     } catch (e) {
-      if (e.code === "ER_DUP_ENTRY") {
-        await logAccessEvent({
-          ...auditContext,
-          category: "admin",
-          eventType: "role_assignment_duplicate",
-          decision: "info",
-          severity: "low",
-          userId: Number(decoded.sub) || null,
-          sessionId: Number(decoded.sessionId) || null,
-          deviceId: Number(decoded.deviceId) || null,
-          message: `User ${userId} already has role ${roleNameRaw}`,
-          metadata: { targetUserId: userId, roleName: roleNameRaw },
-        });
-        return NextResponse.json({
-          ok: true,
-          message: "User already has this role",
-          userId,
-          roleName: roleNameRaw,
-        });
-      }
+      await pool.query("ROLLBACK");
       throw e;
     }
 
@@ -127,7 +111,7 @@ export async function POST(request) {
       userId: Number(decoded.sub) || null,
       sessionId: Number(decoded.sessionId) || null,
       deviceId: Number(decoded.deviceId) || null,
-      message: `Assigned role ${roleNameRaw} to user ${userId}`,
+      message: `Set role ${roleNameRaw} for user ${userId} (replaced existing roles)`,
       metadata: { targetUserId: userId, roleName: roleNameRaw },
     });
 
